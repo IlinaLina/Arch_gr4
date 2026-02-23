@@ -50,8 +50,7 @@ cv::Mat contrast_filter(const cv::Mat& img) {
 }
 
 
-// не RGB, а BGR
-cv::Mat all_blue_filter(const cv::Mat& img) {
+cv::Mat all_red_filter(const cv::Mat& img) {
     cv::Mat result = img.clone();
     for (int y = 0; y < img.rows; y++) {
         for (int x = 0; x < img.cols; x++) {
@@ -71,7 +70,7 @@ cv::Mat all_green_filter(const cv::Mat& img) {
     return result;
 }
 
-cv::Mat all_red_filter(const cv::Mat& img) {
+cv::Mat all_blue_filter(const cv::Mat& img) {
     cv::Mat result = img.clone();
     for (int y = 0; y < img.rows; y++) {
         for (int x = 0; x < img.cols; x++) {
