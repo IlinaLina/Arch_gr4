@@ -3,54 +3,6 @@
 #include <string>
 
 int main() {
-    // std::string abs_path = std::filesystem::current_path().string();
-    // std::string img_path = abs_path + "/test_images/";
-    // std::string res_path = abs_path + "/result_images/";
-    
-    // Создаем директорию для тестовых изображений, если её нет
-    // fs::create_directories(img_path);
-    // fs::create_directories(res_path);
-    
-    // Manager manager(4);
-
-    // manager.setBlurStrength(3);
-    
-    // // Тест с blur фильтром
-    // std::cout << "\n=== Testing Blur Filter ===" << std::endl;
-    // auto start = std::chrono::high_resolution_clock::now();
-    
-    // manager.runBlur(img_path, res_path);
-    
-    // auto finish = std::chrono::high_resolution_clock::now();
-    // auto period = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-    // std::cout << "Multithreaded processing time: " << period.count() / 1000.0 << " seconds" << std::endl;
-    
-    // // Тест с инвертированием
-    // std::cout << "\n=== Testing Invert Filter ===" << std::endl;
-    // auto start = std::chrono::high_resolution_clock::now();
-    
-    // manager.run(img_path, res_path, invert_filter);
-    
-    // auto finish = std::chrono::high_resolution_clock::now();
-    // auto period = std::chrono::duration_cast<std::chrono::milliseconds>(finish - start);
-    // std::cout << "Multithreaded processing time: " << period.count() / 1000.0 << " seconds" << std::endl;
-    
-    // // Одиночная обработка для сравнения
-    // std::cout << "\n=== Testing Single Image Processing ===" << std::endl;
-    // start = std::chrono::high_resolution_clock::now();
-    
-    // std::string test_img_path = abs_path + "/pic1.jpg";
-    // cv::Mat img = cv::imread(test_img_path);
-    // if (!img.empty()) {
-    //     cv::cvtColor(img, img, cv::COLOR_BGR2RGB);
-    //     blur_filter(img, 7);
-    //     std::cout << "Single image processed" << std::endl;
-    // } else {
-    //     std::cout << "Test image not found: " << test_img_path << std::endl;
-    // }
-
-    ///старт
-
     Manager manager(2);
     std::string abs_path = std::filesystem::current_path().string();
 
