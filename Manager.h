@@ -3,16 +3,15 @@
 
 #include <iostream>
 #include <vector>
-#include <queue>
 #include <thread>
 #include <mutex>
-#include <condition_variable>
 #include <filesystem>
 #include <chrono>
 #include <opencv2/opencv.hpp>
 #include <functional>
 #include <atomic>
 #include "filters.h"
+#include "BlockingQueue.h"
 
 namespace fs = std::filesystem;
 
@@ -26,18 +25,15 @@ private:
     std::string path;
     int processor_count;
     
-    std::queue<FragmentInfo*> task_buffer;
+    BlockingQueue<FragmentInfo*> task_queue;
     std::vector<FragmentInfo*> result_buffer;
-    std::mutex task_mutex;
     std::mutex result_mutex;
-    std::condition_variable task_cv;
     
     cv::Mat current_img;
     int blur_strength = 5;
     int slice_size = 128;
     
-    std::atomic<bool> slicer_finished{false};
-    std::atomic<bool> stop_processing{false};
+    std::atomic<bool> all_tasks_added{false};
 
 public:
     Manager(int processor_count);
@@ -58,7 +54,6 @@ public:
     int getBlurStrength();
     int getSliceSize();
     int getProcessorNumber();
-
 };
 
 #endif

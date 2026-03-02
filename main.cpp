@@ -38,7 +38,7 @@ int main() {
                 std::cout << "Enter new thread count: ";
                 std::cin >> value;
                 
-                if (!std::cin.fail() && value > 0 && value < 16) {
+                if (!std::cin.fail() && value > 0 && value <= 16) {
                     manager.setProcessorNumber(value);
                     std::cout << "Thread count set to " << value << std::endl;
                 } else {

@@ -9,16 +9,19 @@ void Manager::run(const std::string& img_path, const std::string& result_path,
     auto start = std::chrono::high_resolution_clock::now();
     
     for (const auto& entry : fs::directory_iterator(img_path)) {
+
+        auto start_1 = std::chrono::high_resolution_clock::now();
+
         std::string img_name = entry.path().filename().string();
         std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         
         if (ext != ".jpg" && ext != ".png" && ext != ".jpeg" && ext != ".bmp") {
             continue;
         }
 
         clearBuffers();
-        slicer_finished = false;
-        stop_processing = false;
+        all_tasks_added = false;
         
         current_img = cv::imread(entry.path().string());
         if (current_img.empty()) {
@@ -36,11 +39,8 @@ void Manager::run(const std::string& img_path, const std::string& result_path,
         
         slicer_thread.join();
         
-        {
-            std::lock_guard<std::mutex> lock(task_mutex);
-            stop_processing = true;
-            task_cv.notify_all();
-        }
+        all_tasks_added = true;
+        task_queue.stop();
         
         for (auto& thread : threads) {
             thread.join();
@@ -57,11 +57,15 @@ void Manager::run(const std::string& img_path, const std::string& result_path,
             cv::cvtColor(result_img, result_img, cv::COLOR_RGB2BGR);
             
             fs::create_directories(result_path);
+
+            auto finish_1 = std::chrono::high_resolution_clock::now();
+            auto total_time_1 = std::chrono::duration_cast<std::chrono::milliseconds>(finish_1 - start_1);
+
+            std::cout << "Image " << img_name << " is processed for " << total_time_1.count() / 1000.0 << " seconds" << std::endl;
             
             std::string output_path = result_path + "processed_" + img_name;
             cv::imwrite(output_path, result_img);
         }
-        
 
         for (auto frag : result_buffer) {
             delete frag;
@@ -96,12 +100,7 @@ void Manager::slicer(int slice_size) {
         cv::Mat fragment = current_img(roi).clone();
         
         FragmentInfo* info = new FragmentInfo{fragment, left};
-        
-        {
-            std::lock_guard<std::mutex> lock(task_mutex);
-            task_buffer.push(info);
-        }
-        task_cv.notify_one();
+        task_queue.push(info);
     }
     
     if (width % slice_size != 0) {
@@ -110,74 +109,54 @@ void Manager::slicer(int slice_size) {
         cv::Mat fragment = current_img(roi).clone();
         
         FragmentInfo* info = new FragmentInfo{fragment, left};
-        
-        {
-            std::lock_guard<std::mutex> lock(task_mutex);
-            task_buffer.push(info);
-        }
-        task_cv.notify_one();
+        task_queue.push(info);
     }
-    
-    slicer_finished = true;
 }
 
 void Manager::processor(std::function<cv::Mat(const cv::Mat&)> filter, bool isBlur) {
     while (true) {
         FragmentInfo* fragment_info = nullptr;
         
-        {
-            std::unique_lock<std::mutex> lock(task_mutex);
-            task_cv.wait(lock, [this] {
-                return !task_buffer.empty() || stop_processing;
-            });
-            
-            if (stop_processing && task_buffer.empty()) {
+        bool got_task = task_queue.pop(fragment_info);
+        
+        if (!got_task) {
+            if (all_tasks_added) {
                 return;
-            }
-            
-            if (!task_buffer.empty()) {
-                fragment_info = task_buffer.front();
-                task_buffer.pop();
+            } else {
+                continue;
             }
         }
         
-        if (fragment_info) {
-            cv::Mat processed_fragment;
+        cv::Mat processed_fragment;
 
-            if (isBlur) {
-                int k = blur_strength / 2;
-                int left = fragment_info->left_position;
-                int right = left + fragment_info->fragment.cols;
-                
-                int ext_left = std::max(0, left - k);
-                int ext_right = std::min(current_img.cols, right + k);
-                
-                cv::Rect extended_roi(
-                    ext_left,
-                    0,
-                    ext_right - ext_left,
-                    current_img.rows
-                );
-                
-                cv::Mat extended = current_img(extended_roi).clone();
-                cv::Mat blurred = blur_filter(extended, blur_strength);
-                
-                int crop_left = left - ext_left;
-                cv::Rect crop_roi(crop_left, 0, fragment_info->fragment.cols, fragment_info->fragment.rows);
-                processed_fragment = blurred(crop_roi).clone();
-            } else {
-                processed_fragment = filter(fragment_info->fragment);
-            }
+        if (isBlur) {
+            int k = blur_strength / 2;
+            int left = fragment_info->left_position;
+            int right = left + fragment_info->fragment.cols;
             
-            FragmentInfo* result_info = new FragmentInfo{processed_fragment, fragment_info->left_position};
+            int ext_left = std::max(0, left - k);
+            int ext_right = std::min(current_img.cols, right + k);
             
-            {
-                std::lock_guard<std::mutex> lock(result_mutex);
-                result_buffer.push_back(result_info);
-            }
+            cv::Rect extended_roi(ext_left, 0, ext_right - ext_left, current_img.rows);
             
-            delete fragment_info;
+            cv::Mat extended = current_img(extended_roi).clone();
+            cv::Mat blurred = blur_filter(extended, blur_strength);
+            
+            int crop_left = left - ext_left;
+            cv::Rect crop_roi(crop_left, 0, fragment_info->fragment.cols, fragment_info->fragment.rows);
+            processed_fragment = blurred(crop_roi).clone();
+        } else {
+            processed_fragment = filter(fragment_info->fragment);
         }
+
+        FragmentInfo* result_info = new FragmentInfo{processed_fragment, fragment_info->left_position};
+        
+        {
+            std::lock_guard<std::mutex> lock(result_mutex);
+            result_buffer.push_back(result_info);
+        }
+        
+        delete fragment_info;
     }
 }
 
@@ -204,11 +183,7 @@ cv::Mat Manager::collector() {
 }
 
 void Manager::clearBuffers() {
-    std::lock_guard<std::mutex> lock(task_mutex);
-    while (!task_buffer.empty()) {
-        delete task_buffer.front();
-        task_buffer.pop();
-    }
+    task_queue.clear();
 }
 
 int Manager::getBlurStrength() {
